@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 from enum import Enum
 from typing import Any
+from uuid import uuid4
 
 from pydantic import (
     AnyUrl,
@@ -649,3 +650,109 @@ class AnswerRankingResult(BaseModel):
             )
 
         return self
+class FeedbackRating(str, Enum):
+    """用户对回答专业质量的评价。"""
+
+    PROFESSIONAL = "专业"
+    AVERAGE = "一般"
+    MISMATCH = "不匹配"
+
+
+class FeedbackAction(str, Enum):
+    """用户对回答采取的行为。"""
+
+    ADOPT = "采纳"
+    COPY = "复制"
+class AnswerFeedbackEvent(BaseModel):
+    """一次用户回答反馈事件。"""
+
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        extra="forbid",
+    )
+
+    event_id: str = Field(
+        default_factory=lambda: uuid4().hex,
+        min_length=1,
+        description="反馈事件唯一标识",
+    )
+    answer_id: str = Field(
+        min_length=1,
+        description="反馈对应的回答 ID",
+    )
+    question: str | None = Field(
+        default=None,
+        description="反馈对应的用户问题",
+    )
+    rating: FeedbackRating | None = Field(
+        default=None,
+        description="专业、一般或不匹配评价",
+    )
+    action: FeedbackAction | None = Field(
+        default=None,
+        description="采纳或复制行为",
+    )
+    comment: str | None = Field(
+        default=None,
+        max_length=500,
+        description="用户补充意见",
+    )
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="反馈记录时间",
+    )
+
+    @model_validator(mode="after")
+    def at_least_one_feedback_signal(
+        self,
+    ) -> "AnswerFeedbackEvent":
+        """反馈必须包含评价或行为信号。"""
+        if self.rating is None and self.action is None:
+            raise ValueError(
+                "反馈必须至少包含 rating 或 action"
+            )
+
+        return self
+
+
+class AnswerFeedbackSummary(BaseModel):
+    """一个候选回答的用户反馈聚合结果。"""
+
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        extra="forbid",
+    )
+
+    answer_id: str = Field(
+        min_length=1,
+        description="被聚合的回答 ID",
+    )
+    total_events: int = Field(
+        ge=0,
+        description="反馈事件总数",
+    )
+    rating_counts: dict[str, int] = Field(
+        default_factory=dict,
+        description="各评价类型的数量",
+    )
+    action_counts: dict[str, int] = Field(
+        default_factory=dict,
+        description="各行为类型的数量",
+    )
+    rating_score: float | None = Field(
+        default=None,
+        ge=0,
+        le=100,
+        description="评价信号得分",
+    )
+    action_score: float | None = Field(
+        default=None,
+        ge=0,
+        le=100,
+        description="行为信号得分",
+    )
+    user_feedback_score: float = Field(
+        ge=0,
+        le=100,
+        description="最终用户反馈得分",
+    )

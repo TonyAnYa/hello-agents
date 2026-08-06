@@ -51,8 +51,12 @@ def main() -> None:
         CONCEPT_CARD_DIR
         / "demo_multi_user_green_power_answer_ranking.json"
     )
+
     output_path.write_text(
-        result.model_dump_json(indent=2),
+        result.model_dump_json(
+            indent=2,
+            exclude_computed_fields=True,
+        ),
         encoding="utf-8",
     )
 
