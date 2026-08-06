@@ -339,3 +339,130 @@ class ConceptAnalysis(BaseModel):
         default_factory=lambda: datetime.now(timezone.utc),
         description="分析生成时间",
     )
+class BusinessDomain(str, Enum):
+    """广东电网业务影响领域。"""
+
+    PLANNING = "规划建设"
+    DISPATCH = "调度运行"
+    MARKET = "市场交易"
+    METERING = "计量结算"
+    SAFETY = "安全责任"
+    KNOWLEDGE_GOVERNANCE = "知识治理"
+
+
+class ImpactLevel(str, Enum):
+    """业务影响程度。"""
+
+    HIGH = "高"
+    MEDIUM = "中"
+    LOW = "低"
+    UNCERTAIN = "待核验"
+    
+class BusinessDomainImpact(BaseModel):
+    """一个业务领域的影响分析。"""
+
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        extra="forbid",
+    )
+
+    domain: BusinessDomain = Field(
+        description="广东电网业务领域",
+    )
+    impact_level: ImpactLevel = Field(
+        description="影响程度",
+    )
+    impact_summary: str = Field(
+        min_length=1,
+        description="影响摘要",
+    )
+    affected_processes: list[str] = Field(
+        default_factory=list,
+        description="可能受影响的业务流程",
+    )
+    risks: list[str] = Field(
+        default_factory=list,
+        description="潜在风险",
+    )
+    opportunities: list[str] = Field(
+        default_factory=list,
+        description="潜在机会",
+    )
+    recommended_actions: list[str] = Field(
+        default_factory=list,
+        description="建议采取的行动",
+    )
+    evidence_basis: list[str] = Field(
+        default_factory=list,
+        description="支持判断的输入事实或分析依据",
+    )
+
+
+class BusinessImpactAssessment(BaseModel):
+    """候选政策概念对广东电网的业务影响评估草稿。"""
+
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        extra="forbid",
+    )
+
+    term: str = Field(
+        min_length=1,
+        description="被评估的政策概念",
+    )
+    source_document_id: str = Field(
+        min_length=1,
+        description="来源政策文档 ID",
+    )
+    source_is_simulated: bool = Field(
+        description="来源是否为教学模拟数据",
+    )
+
+    overall_summary: str = Field(
+        min_length=1,
+        description="总体业务影响摘要",
+    )
+    domain_impacts: list[BusinessDomainImpact] = Field(
+        min_length=1,
+        description="分领域业务影响",
+    )
+    cross_domain_issues: list[str] = Field(
+        default_factory=list,
+        description="跨专业协同事项",
+    )
+    governance_tasks: list[str] = Field(
+        default_factory=list,
+        description="建议发起的知识治理任务",
+    )
+    uncertainties: list[str] = Field(
+        default_factory=list,
+        description="当前无法确认的事项",
+    )
+    confidence: float = Field(
+        ge=0,
+        le=1,
+        description="业务影响评估置信度",
+    )
+    assessed_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="评估生成时间",
+    )
+
+    @field_validator("domain_impacts")
+    @classmethod
+    def domain_impacts_must_be_unique(
+        cls,
+        impacts: list[BusinessDomainImpact],
+    ) -> list[BusinessDomainImpact]:
+        """同一业务领域不能重复出现。"""
+        domains = [
+            impact.domain
+            for impact in impacts
+        ]
+
+        if len(domains) != len(set(domains)):
+            raise ValueError(
+                "domain_impacts 中存在重复业务领域"
+            )
+
+        return impacts
