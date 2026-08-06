@@ -29,8 +29,12 @@ from enterprise_concept_radar.tools.policy_source import (
     load_policy_document,
 )
 from enterprise_concept_radar.tools.report import (
+    IntegratedReportError,
+    build_integrated_report,
     render_concept_discovery_report,
+    save_integrated_report,
     save_markdown_report,
+    validate_integrated_report_inputs,
 )
 
 __all__ = [
@@ -56,4 +60,8 @@ __all__ = [
     "infer_governance_task_type",
     "load_governance_task_batch",
     "save_governance_task_batch",
+    "IntegratedReportError",
+    "build_integrated_report",
+    "save_integrated_report",
+    "validate_integrated_report_inputs",
 ]

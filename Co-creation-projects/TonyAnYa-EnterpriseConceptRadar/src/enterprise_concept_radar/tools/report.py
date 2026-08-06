@@ -5,7 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 
 from enterprise_concept_radar.models import (
+    AnswerPackage,
+    BusinessImpactAssessment,
+    ConceptAnalysis,
     ConceptCandidate,
+    FeedbackAwareRankingResult,
+    GovernanceTaskBatch,
     PolicyDocument,
 )
 
@@ -120,5 +125,362 @@ def save_markdown_report(
         content,
         encoding="utf-8",
     )
+
+    return path
+class IntegratedReportError(ValueError):
+    """综合报告输入不一致或保存失败。"""
+
+
+def _markdown_list(
+    items: list[str],
+    empty_text: str = "暂无",
+) -> str:
+    """将字符串列表转换为 Markdown 列表。"""
+    if not items:
+        return f"- {empty_text}"
+
+    return "\n".join(
+        f"- {item}"
+        for item in items
+    )
+
+
+def _table_cell(value: object) -> str:
+    """清理 Markdown 表格单元格内容。"""
+    return (
+        str(value)
+        .replace("|", "\\|")
+        .replace("\r\n", "<br>")
+        .replace("\n", "<br>")
+    )
+
+
+def _format_counts(
+    counts: dict[str, int],
+) -> str:
+    """将反馈统计字典转换为简短文本。"""
+    active_counts = [
+        f"{name}：{count}"
+        for name, count in counts.items()
+        if count > 0
+    ]
+
+    return "、".join(active_counts) or "无"
+
+
+def validate_integrated_report_inputs(
+    analysis: ConceptAnalysis,
+    impact_assessment: BusinessImpactAssessment,
+    answer_package: AnswerPackage,
+    feedback_ranking: FeedbackAwareRankingResult,
+    governance_batch: GovernanceTaskBatch,
+) -> None:
+    """校验综合报告的输入是否属于同一任务。"""
+    terms = {
+        analysis.term,
+        impact_assessment.term,
+        answer_package.term,
+        feedback_ranking.ranking.term,
+        governance_batch.term,
+    }
+
+    if len(terms) != 1:
+        raise IntegratedReportError(
+            "综合报告输入的 term 不一致"
+        )
+
+    source_document_ids = {
+        analysis.source_document_id,
+        impact_assessment.source_document_id,
+        answer_package.source_document_id,
+        feedback_ranking.ranking.source_document_id,
+        governance_batch.source_document_id,
+    }
+
+    if len(source_document_ids) != 1:
+        raise IntegratedReportError(
+            "综合报告输入的来源文档不一致"
+        )
+
+    package_answer_ids = {
+        candidate.answer_id
+        for candidate in answer_package.candidates
+    }
+    ranking_answer_ids = {
+        evaluation.answer_id
+        for evaluation
+        in feedback_ranking.ranking.evaluations
+    }
+
+    if package_answer_ids != ranking_answer_ids:
+        raise IntegratedReportError(
+            "回答包与排名结果的 answer_id 不一致"
+        )
+
+
+def build_integrated_report(
+    analysis: ConceptAnalysis,
+    impact_assessment: BusinessImpactAssessment,
+    answer_package: AnswerPackage,
+    feedback_ranking: FeedbackAwareRankingResult,
+    governance_batch: GovernanceTaskBatch,
+) -> str:
+    """生成面向项目展示的综合 Markdown 报告。"""
+    validate_integrated_report_inputs(
+        analysis=analysis,
+        impact_assessment=impact_assessment,
+        answer_package=answer_package,
+        feedback_ranking=feedback_ranking,
+        governance_batch=governance_batch,
+    )
+
+    recommended_answer_id = (
+        feedback_ranking.ranking.recommended_answer_id
+    )
+    recommended_candidate = next(
+        candidate
+        for candidate in answer_package.candidates
+        if candidate.answer_id == recommended_answer_id
+    )
+
+    lines = [
+        "# 企业大脑：新词新概念追踪综合报告",
+        "",
+        f"- **追踪概念：** {analysis.term}",
+        (
+            "- **来源文档 ID：** "
+            f"{analysis.source_document_id}"
+        ),
+        (
+            "- **数据性质：** "
+            + (
+                "教学模拟数据"
+                if analysis.source_is_simulated
+                else "正式来源数据"
+            )
+        ),
+        (
+            "- **当前推荐回答：** "
+            f"{recommended_answer_id}"
+        ),
+        "",
+        "## 一、管理摘要",
+        "",
+        impact_assessment.overall_summary,
+        "",
+        "### 推荐结论",
+        "",
+        feedback_ranking.ranking.recommendation_reason,
+        "",
+        "## 二、概念解释与证据边界",
+        "",
+        "### 概念解释草稿",
+        "",
+        analysis.explanation_draft,
+        "",
+        "### 政策原文事实",
+        "",
+        _markdown_list(analysis.source_facts),
+        "",
+        "### 规则判断",
+        "",
+        _markdown_list(analysis.rule_judgements),
+        "",
+        "### 模型推断",
+        "",
+        _markdown_list(analysis.model_inferences),
+        "",
+        "### 相关术语比较",
+        "",
+        _markdown_list(
+            analysis.related_term_comparison
+        ),
+        "",
+        "### 待核验事项",
+        "",
+        _markdown_list(analysis.uncertainties),
+        "",
+        "### 建议核验动作",
+        "",
+        _markdown_list(
+            analysis.verification_actions
+        ),
+        "",
+        "## 三、广东电网六领域影响评估",
+        "",
+        (
+            "| 业务领域 | 影响程度 | "
+            "影响摘要 | 建议行动 |"
+        ),
+        "|---|---:|---|---|",
+    ]
+
+    for impact in impact_assessment.domain_impacts:
+        actions = "；".join(
+            impact.recommended_actions
+        ) or "暂无"
+
+        lines.append(
+            "| "
+            f"{_table_cell(impact.domain.value)} | "
+            f"{_table_cell(impact.impact_level.value)} | "
+            f"{_table_cell(impact.impact_summary)} | "
+            f"{_table_cell(actions)} |"
+        )
+
+    lines.extend(
+        [
+            "",
+            "### 跨专业协同事项",
+            "",
+            _markdown_list(
+                impact_assessment.cross_domain_issues
+            ),
+            "",
+            "## 四、候选回答评分与推荐",
+            "",
+            (
+                "| 回答 ID | 语义相关性 | 关键词覆盖 | "
+                "权威依据 | 时效性 | 业务关联度 | "
+                "可操作性 | 用户反馈 | 总分 |"
+            ),
+            (
+                "|---|---:|---:|---:|---:|---:|"
+                "---:|---:|---:|"
+            ),
+        ]
+    )
+
+    for evaluation in feedback_ranking.ranking.evaluations:
+        lines.append(
+            "| "
+            f"{_table_cell(evaluation.answer_id)} | "
+            f"{evaluation.semantic_relevance:.2f} | "
+            f"{evaluation.keyword_coverage:.2f} | "
+            f"{evaluation.authority_score:.2f} | "
+            f"{evaluation.timeliness_score:.2f} | "
+            f"{evaluation.business_relevance:.2f} | "
+            f"{evaluation.actionability_score:.2f} | "
+            f"{evaluation.user_feedback_score:.2f} | "
+            f"{evaluation.total_score:.2f} |"
+        )
+
+    lines.extend(
+        [
+            "",
+            "### 推荐回答",
+            "",
+            f"#### {recommended_candidate.title}",
+            "",
+            recommended_candidate.content,
+            "",
+            "#### 推荐回答的行动建议",
+            "",
+            _markdown_list(
+                recommended_candidate.action_items
+            ),
+            "",
+            "#### 推荐回答的限制说明",
+            "",
+            _markdown_list(
+                recommended_candidate.caveats
+            ),
+            "",
+            "## 五、用户反馈汇总",
+            "",
+            (
+                "| 回答 ID | 反馈事件 | 评价统计 | "
+                "行为统计 | 用户反馈分 |"
+            ),
+            "|---|---:|---|---|---:|",
+        ]
+    )
+
+    for summary in feedback_ranking.feedback_summaries:
+        lines.append(
+            "| "
+            f"{_table_cell(summary.answer_id)} | "
+            f"{summary.total_events} | "
+            f"{_table_cell(_format_counts(summary.rating_counts))} | "
+            f"{_table_cell(_format_counts(summary.action_counts))} | "
+            f"{summary.user_feedback_score:.2f} |"
+        )
+
+    lines.extend(
+        [
+            "",
+            "## 六、知识治理任务",
+            "",
+            (
+                "| 优先级 | 任务类型 | 任务标题 | "
+                "触发原因 | 关联回答 |"
+            ),
+            "|---|---|---|---|---|",
+        ]
+    )
+
+    for task in governance_batch.tasks:
+        lines.append(
+            "| "
+            f"{_table_cell(task.priority.value)} | "
+            f"{_table_cell(task.task_type.value)} | "
+            f"{_table_cell(task.title)} | "
+            f"{_table_cell(task.trigger)} | "
+            f"{_table_cell(task.related_answer_id or '无')} |"
+        )
+
+    lines.extend(
+        [
+            "",
+            "## 七、使用声明",
+            "",
+        ]
+    )
+
+    if analysis.source_is_simulated:
+        lines.extend(
+            [
+                (
+                    "> 当前来源为教学模拟数据，"
+                    "不能作为真实政策依据。"
+                ),
+                ">",
+                (
+                    "> 本报告中的概念解释、业务影响、"
+                    "回答推荐和治理任务均用于课程演示，"
+                    "正式使用前必须核验权威政策原文。"
+                ),
+            ]
+        )
+    else:
+        lines.append(
+            "> 本报告仍需由相关专业人员复核后使用。"
+        )
+
+    lines.append("")
+
+    return "\n".join(lines)
+
+
+def save_integrated_report(
+    report: str,
+    output_path: str | Path,
+) -> Path:
+    """将综合报告保存为 UTF-8 Markdown 文件。"""
+    path = Path(output_path)
+
+    try:
+        path.parent.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+        path.write_text(
+            report,
+            encoding="utf-8",
+        )
+    except OSError as exc:
+        raise IntegratedReportError(
+            f"无法保存综合报告：{path}；{exc}"
+        ) from exc
 
     return path
