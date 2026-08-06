@@ -15,6 +15,14 @@ from enterprise_concept_radar.tools.feedback import (
     default_feedback_path,
     load_feedback_events,
 )
+from enterprise_concept_radar.tools.governance import (
+    GovernanceTaskError,
+    build_governance_task_batch,
+    default_governance_task_path,
+    infer_governance_task_type,
+    load_governance_task_batch,
+    save_governance_task_batch,
+)
 from enterprise_concept_radar.tools.policy_source import (
     PolicySourceError,
     load_policy_directory,
@@ -42,4 +50,10 @@ __all__ = [
     "create_feedback_event",
     "default_feedback_path",
     "load_feedback_events",
+    "GovernanceTaskError",
+    "build_governance_task_batch",
+    "default_governance_task_path",
+    "infer_governance_task_type",
+    "load_governance_task_batch",
+    "save_governance_task_batch",
 ]

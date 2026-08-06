@@ -798,3 +798,155 @@ class FeedbackAwareRankingResult(BaseModel):
             )
 
         return self
+class GovernanceTaskType(str, Enum):
+    """知识治理任务类型。"""
+
+    CONCEPT_ENTRY = "概念词条建设"
+    SOURCE_VERIFICATION = "政策来源核验"
+    ANSWER_REVIEW = "回答质量复核"
+    STANDARD_QA = "标准问答沉淀"
+    BUSINESS_RULE_MAPPING = "业务规则映射"
+
+
+class GovernanceTaskPriority(str, Enum):
+    """知识治理任务优先级。"""
+
+    HIGH = "高"
+    MEDIUM = "中"
+    LOW = "低"
+
+
+class GovernanceTaskStatus(str, Enum):
+    """知识治理任务状态。"""
+
+    PENDING = "待处理"
+    IN_PROGRESS = "处理中"
+    COMPLETED = "已完成"
+    CANCELLED = "已取消"
+class GovernanceTask(BaseModel):
+    """一项可跟踪的知识治理任务。"""
+
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        extra="forbid",
+    )
+
+    task_id: str = Field(
+        default_factory=lambda: uuid4().hex,
+        min_length=1,
+        description="治理任务唯一标识",
+    )
+    term: str = Field(
+        min_length=1,
+        description="任务关联的政策概念",
+    )
+    source_document_id: str = Field(
+        min_length=1,
+        description="任务关联的来源文档 ID",
+    )
+    task_type: GovernanceTaskType = Field(
+        description="治理任务类型",
+    )
+    priority: GovernanceTaskPriority = Field(
+        description="任务优先级",
+    )
+    status: GovernanceTaskStatus = Field(
+        default=GovernanceTaskStatus.PENDING,
+        description="任务处理状态",
+    )
+    title: str = Field(
+        min_length=1,
+        max_length=120,
+        description="任务标题",
+    )
+    description: str = Field(
+        min_length=1,
+        description="任务说明",
+    )
+    trigger: str = Field(
+        min_length=1,
+        description="任务触发原因",
+    )
+    related_answer_id: str | None = Field(
+        default=None,
+        description="任务关联的候选回答 ID",
+    )
+    evidence_basis: list[str] = Field(
+        default_factory=list,
+        description="任务触发依据",
+    )
+    recommended_actions: list[str] = Field(
+        default_factory=list,
+        description="建议处理动作",
+    )
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="任务创建时间",
+    )
+
+
+class GovernanceTaskBatch(BaseModel):
+    """同一政策概念的一批知识治理任务。"""
+
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        extra="forbid",
+    )
+
+    term: str = Field(
+        min_length=1,
+        description="任务批次关联的政策概念",
+    )
+    source_document_id: str = Field(
+        min_length=1,
+        description="任务批次关联的来源文档 ID",
+    )
+    tasks: list[GovernanceTask] = Field(
+        min_length=1,
+        description="知识治理任务列表",
+    )
+    generated_from_feedback: bool = Field(
+        default=False,
+        description="本批次是否包含用户反馈触发的任务",
+    )
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="任务批次创建时间",
+    )
+
+    @field_validator("tasks")
+    @classmethod
+    def task_ids_must_be_distinct(
+        cls,
+        tasks: list[GovernanceTask],
+    ) -> list[GovernanceTask]:
+        """同一批次中的任务 ID 不能重复。"""
+        task_ids = [
+            task.task_id
+            for task in tasks
+        ]
+
+        if len(task_ids) != len(set(task_ids)):
+            raise ValueError(
+                "治理任务的 task_id 不能重复"
+            )
+
+        return tasks
+
+    @model_validator(mode="after")
+    def tasks_must_match_batch(
+        self,
+    ) -> "GovernanceTaskBatch":
+        """批次中的概念和来源必须一致。"""
+        for task in self.tasks:
+            if task.term != self.term:
+                raise ValueError(
+                    "治理任务与任务批次的 term 不一致"
+                )
+
+            if task.source_document_id != self.source_document_id:
+                raise ValueError(
+                    "治理任务与任务批次的来源文档不一致"
+                )
+
+        return self
