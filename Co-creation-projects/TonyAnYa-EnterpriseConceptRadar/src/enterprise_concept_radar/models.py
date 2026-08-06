@@ -357,7 +357,7 @@ class ImpactLevel(str, Enum):
     MEDIUM = "中"
     LOW = "低"
     UNCERTAIN = "待核验"
-    
+
 class BusinessDomainImpact(BaseModel):
     """一个业务领域的影响分析。"""
 
@@ -466,3 +466,105 @@ class BusinessImpactAssessment(BaseModel):
             )
 
         return impacts
+class AnswerStyle(str, Enum):
+    """候选回答的表达风格。"""
+
+    EXECUTIVE_BRIEF = "管理摘要型"
+    PROFESSIONAL_ANALYSIS = "专业分析型"
+class AnswerCandidate(BaseModel):
+    """面向管理人员的一个候选回答。"""
+
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        extra="forbid",
+    )
+
+    answer_id: str = Field(
+        min_length=1,
+        description="候选回答唯一标识",
+    )
+    style: AnswerStyle = Field(
+        description="回答表达风格",
+    )
+    title: str = Field(
+        min_length=1,
+        description="回答标题",
+    )
+    content: str = Field(
+        min_length=20,
+        description="回答正文",
+    )
+    evidence_references: list[str] = Field(
+        default_factory=list,
+        description="回答引用的证据说明",
+    )
+    action_items: list[str] = Field(
+        default_factory=list,
+        description="建议采取的行动",
+    )
+    caveats: list[str] = Field(
+        default_factory=list,
+        description="限制条件和不确定事项",
+    )
+    generated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="候选回答生成时间",
+    )
+
+
+class AnswerPackage(BaseModel):
+    """同一问题对应的两份候选回答。"""
+
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        extra="forbid",
+    )
+
+    question: str = Field(
+        min_length=1,
+        description="管理人员提出的问题",
+    )
+    term: str = Field(
+        min_length=1,
+        description="问题涉及的政策概念",
+    )
+    source_document_id: str = Field(
+        min_length=1,
+        description="来源政策文档 ID",
+    )
+    source_is_simulated: bool = Field(
+        description="来源是否为教学模拟数据",
+    )
+    candidates: list[AnswerCandidate] = Field(
+        min_length=2,
+        max_length=2,
+        description="两份候选回答",
+    )
+
+    @field_validator("candidates")
+    @classmethod
+    def candidates_must_be_distinct(
+        cls,
+        candidates: list[AnswerCandidate],
+    ) -> list[AnswerCandidate]:
+        """两份候选回答必须具有不同 ID 和表达风格。"""
+        answer_ids = [
+            candidate.answer_id
+            for candidate in candidates
+        ]
+        styles = [
+            candidate.style
+            for candidate in candidates
+        ]
+
+        if len(set(answer_ids)) != 2:
+            raise ValueError(
+                "两份候选回答的 answer_id 必须不同"
+            )
+
+        if len(set(styles)) != 2:
+            raise ValueError(
+                "两份候选回答应使用不同表达风格"
+            )
+
+        return candidates
