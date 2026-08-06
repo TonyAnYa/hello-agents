@@ -61,3 +61,6 @@ dist/
 *.mov
 *.avi
 *.parquet
+# 本项目自动化测试必须纳入版本控制
+!/tests/
+!/tests/test_*.py

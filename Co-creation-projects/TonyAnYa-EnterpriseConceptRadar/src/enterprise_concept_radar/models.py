@@ -37,7 +37,7 @@ class ConceptCandidateType(str, Enum):
     HEATING_CONCEPT = "升温概念"
     DEFINITION_CHANGE = "定义变化"
     RELATED_CONCEPT = "相近概念"
-    
+
 class BaselineTerm(BaseModel):
     """历史术语基线中的一个已知概念。"""
 
@@ -281,3 +281,61 @@ class AnswerEvaluation(BaseModel):
         )
 
         return round(score, 2)
+class ConceptAnalysis(BaseModel):
+    """模型生成的结构化概念分析草稿。"""
+
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        extra="forbid",
+    )
+
+    term: str = Field(
+        min_length=1,
+        description="被分析的候选概念",
+    )
+    source_document_id: str = Field(
+        min_length=1,
+        description="来源政策文档 ID",
+    )
+    source_is_simulated: bool = Field(
+        description="来源是否为教学模拟数据",
+    )
+
+    explanation_draft: str = Field(
+        min_length=1,
+        description="概念解释草稿，不等同于权威定义",
+    )
+    source_facts: list[str] = Field(
+        default_factory=list,
+        description="能够直接由输入政策原文支持的事实",
+    )
+    rule_judgements: list[str] = Field(
+        default_factory=list,
+        description="由确定性规则得出的判断",
+    )
+    model_inferences: list[str] = Field(
+        default_factory=list,
+        description="模型根据材料作出的推断",
+    )
+    related_term_comparison: list[str] = Field(
+        default_factory=list,
+        description="与相近历史术语的区别和联系",
+    )
+    uncertainties: list[str] = Field(
+        default_factory=list,
+        description="当前材料无法确认的事项",
+    )
+    verification_actions: list[str] = Field(
+        default_factory=list,
+        description="后续权威核验建议",
+    )
+
+    confidence: float = Field(
+        ge=0,
+        le=1,
+        description="分析草稿置信度",
+    )
+    analyzed_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="分析生成时间",
+    )
