@@ -1,0 +1,2 @@
+# 安装当前项目及 Notebook 运行环境
+-e .[notebook]

@@ -1,0 +1,63 @@
+# 环境变量和密钥
+.env
+.env.local
+.env.*.local
+
+# Python 虚拟环境
+.venv/
+venv/
+env/
+
+# Python 缓存
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# 编辑器
+.vscode/
+.idea/
+.DS_Store
+
+# 本地数据库和缓存
+*.db
+*.sqlite
+*.sqlite3
+cache/
+data/runtime/
+
+# 运行生成结果
+outputs/reports/*
+outputs/concept_cards/*
+outputs/screenshots/*
+
+# 保留输出目录本身
+!outputs/reports/.gitkeep
+!outputs/concept_cards/.gitkeep
+!outputs/screenshots/.gitkeep
+
+# 日志
+logs/
+*.log
+
+# 构建产物
+build/
+dist/
+*.egg-info/
+
+# 大文件
+*.zip
+*.tar
+*.tar.gz
+*.7z
+*.dmg
+*.exe
+*.mp4
+*.mov
+*.avi
+*.parquet

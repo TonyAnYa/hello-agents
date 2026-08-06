@@ -1,0 +1,2 @@
+# 包含项目、Notebook 和开发测试工具
+-e .[notebook,dev]

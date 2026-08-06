@@ -1,0 +1,23 @@
+{
+  "document_id": "demo-policy-2026-001",
+  "title": "关于推进多用户绿电直连协同机制建设的通知（教学模拟）",
+  "source_name": "能源政策权威机构（教学模拟）",
+  "source_url": "https://example.com/policies/demo-policy-2026-001",
+  "published_date": "2026-08-05",
+  "document_type": "通知",
+  "content": "本文件仅用于 EnterpriseConceptRadar 教学演示，不代表真实政策原文。文件提出探索多用户绿电直连协同机制，支持多个电力用户按照清晰的责任边界、计量关系和交易规则，共同参与绿色电力直接供应。有关单位应研究其对电网规划、调度运行、市场交易、计量结算和安全责任划分的影响。",
+  "is_simulated": true,
+  "keywords": [
+    "多用户绿电直连",
+    "绿电直连",
+    "协同机制",
+    "市场交易",
+    "多用户绿电直连"
+  ],
+  "metadata": {
+    "region": "全国",
+    "language": "zh-CN",
+    "data_purpose": "教学与自动化测试",
+    "disclaimer": "非真实政策文件"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "baseline_name": "能源政策术语教学基线",
+  "version": "2026-08-demo",
+  "known_terms": [
+    {
+      "term": "绿电直连",
+      "first_seen_date": "2025-01-01",
+      "aliases": [
+        "绿色电力直接供应"
+      ],
+      "source": "EnterpriseConceptRadar 教学基线"
+    },
+    {
+      "term": "新型电力系统",
+      "first_seen_date": "2021-03-01",
+      "aliases": [
+        "以新能源为主体的新型电力系统"
+      ],
+      "source": "EnterpriseConceptRadar 教学基线"
+    }
+  ]
+}

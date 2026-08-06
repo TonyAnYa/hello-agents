@@ -1,0 +1,11 @@
+# EnterpriseConceptRadar 概念发现规则
+
+minimum_term_length: 4
+maximum_candidates: 10
+
+# 这些词过于通用，不单独视为政策新概念。
+ignored_terms:
+  - 协同机制
+  - 市场交易
+  - 有关单位
+  - 相关工作
