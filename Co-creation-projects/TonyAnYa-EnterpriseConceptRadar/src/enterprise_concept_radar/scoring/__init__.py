@@ -16,6 +16,10 @@ from enterprise_concept_radar.scoring.answer_ranking import (
     rank_answer_package,
     validate_ranking_inputs,
 )
+from enterprise_concept_radar.scoring.feedback_ranking import (
+    build_feedback_summaries,
+    rank_answer_package_with_feedback,
+)
 from enterprise_concept_radar.scoring.novelty import (
     ConceptBaselineError,
     NoveltyAssessment,
@@ -42,4 +46,6 @@ __all__ = [
     "count_covered_business_domains",
     "rank_answer_package",
     "validate_ranking_inputs",
+    "build_feedback_summaries",
+    "rank_answer_package_with_feedback",
 ]

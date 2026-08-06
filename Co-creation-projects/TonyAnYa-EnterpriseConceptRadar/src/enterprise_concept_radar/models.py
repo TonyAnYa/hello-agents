@@ -756,3 +756,45 @@ class AnswerFeedbackSummary(BaseModel):
         le=100,
         description="最终用户反馈得分",
     )
+class FeedbackAwareRankingResult(BaseModel):
+    """使用历史反馈重新评分后的推荐结果。"""
+
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        extra="forbid",
+    )
+
+    ranking: AnswerRankingResult = Field(
+        description="使用反馈分重新计算的排名结果",
+    )
+    feedback_summaries: list[AnswerFeedbackSummary] = Field(
+        min_length=2,
+        max_length=2,
+        description="两份候选回答的反馈聚合结果",
+    )
+
+    @model_validator(mode="after")
+    def feedback_answer_ids_must_match(
+        self,
+    ) -> "FeedbackAwareRankingResult":
+        """反馈汇总必须与排名中的回答一一对应。"""
+        ranking_answer_ids = {
+            evaluation.answer_id
+            for evaluation in self.ranking.evaluations
+        }
+        feedback_answer_ids = {
+            summary.answer_id
+            for summary in self.feedback_summaries
+        }
+
+        if len(feedback_answer_ids) != 2:
+            raise ValueError(
+                "两份反馈汇总的 answer_id 必须不同"
+            )
+
+        if feedback_answer_ids != ranking_answer_ids:
+            raise ValueError(
+                "反馈汇总与排名结果的 answer_id 不一致"
+            )
+
+        return self
