@@ -13,6 +13,7 @@ from pydantic import (
     Field,
     computed_field,
     field_validator,
+    model_validator,
 )
 
 
@@ -568,3 +569,83 @@ class AnswerPackage(BaseModel):
             )
 
         return candidates
+class AnswerRankingResult(BaseModel):
+    """两份候选回答的评分与推荐结果。"""
+
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        extra="forbid",
+    )
+
+    question: str = Field(
+        min_length=1,
+        description="用户问题",
+    )
+    term: str = Field(
+        min_length=1,
+        description="问题涉及的政策概念",
+    )
+    source_document_id: str = Field(
+        min_length=1,
+        description="来源政策文档 ID",
+    )
+    source_is_simulated: bool = Field(
+        description="来源是否为教学模拟数据",
+    )
+    required_keywords: list[str] = Field(
+        default_factory=list,
+        description="本轮评分使用的必要关键词",
+    )
+    evaluations: list[AnswerEvaluation] = Field(
+        min_length=2,
+        max_length=2,
+        description="两份候选回答的评分结果",
+    )
+    recommended_answer_id: str = Field(
+        min_length=1,
+        description="推荐回答 ID",
+    )
+    recommendation_reason: str = Field(
+        min_length=1,
+        description="推荐理由",
+    )
+    evaluated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="评分时间",
+    )
+
+    @field_validator("evaluations")
+    @classmethod
+    def evaluation_ids_must_be_distinct(
+        cls,
+        evaluations: list[AnswerEvaluation],
+    ) -> list[AnswerEvaluation]:
+        """两份评分结果必须对应不同回答。"""
+        answer_ids = [
+            evaluation.answer_id
+            for evaluation in evaluations
+        ]
+
+        if len(set(answer_ids)) != 2:
+            raise ValueError(
+                "两份评分结果的 answer_id 必须不同"
+            )
+
+        return evaluations
+
+    @model_validator(mode="after")
+    def recommended_answer_must_exist(
+        self,
+    ) -> "AnswerRankingResult":
+        """推荐回答必须存在于评分结果中。"""
+        answer_ids = {
+            evaluation.answer_id
+            for evaluation in self.evaluations
+        }
+
+        if self.recommended_answer_id not in answer_ids:
+            raise ValueError(
+                "recommended_answer_id 不在评分结果中"
+            )
+
+        return self

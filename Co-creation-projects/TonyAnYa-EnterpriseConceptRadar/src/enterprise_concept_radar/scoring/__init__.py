@@ -9,6 +9,13 @@ from enterprise_concept_radar.scoring.answer_fit import (
     estimate_semantic_relevance,
     score_answer_candidate,
 )
+from enterprise_concept_radar.scoring.answer_ranking import (
+    AnswerRankingError,
+    build_required_keywords,
+    count_covered_business_domains,
+    rank_answer_package,
+    validate_ranking_inputs,
+)
 from enterprise_concept_radar.scoring.novelty import (
     ConceptBaselineError,
     NoveltyAssessment,
@@ -30,5 +37,9 @@ __all__ = [
     "calculate_keyword_coverage",
     "estimate_semantic_relevance",
     "score_answer_candidate",
-    
+    "AnswerRankingError",
+    "build_required_keywords",
+    "count_covered_business_domains",
+    "rank_answer_package",
+    "validate_ranking_inputs",
 ]
