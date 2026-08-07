@@ -28,6 +28,7 @@ if [ -z "$PYTHON_CMD" ]; then
     exit 1
 fi
 
+echo "正在安装 EnterpriseConceptRadar……"
 echo "使用 Python：$PYTHON_CMD"
 
 if [ ! -d ".venv" ]; then
@@ -37,31 +38,26 @@ fi
 .venv/bin/python -m pip install --upgrade pip setuptools wheel
 .venv/bin/python -m pip install -e .
 
-if [ ! -f ".env" ]; then
-    cp .env.example .env
-    echo
-    echo "已创建 .env。"
-    echo "请使用文本编辑器填写 LLM 和 SERPAPI 配置："
-    echo "$(pwd)/.env"
-fi
+chmod +x \
+    setup_macos.command \
+    start_macos.command \
+    radar_macos.command
 
 echo
-read -r -p "现在配置政策来源吗？[Y/n] " configure_sources
-configure_sources="${configure_sources:-Y}"
-
-if [[ "$configure_sources" =~ ^[Yy]$ ]]; then
-    .venv/bin/python scripts/configure_policy_sources.py
-fi
+.venv/bin/python scripts/configure_api_keys.py
 
 echo
-read -r -p "现在配置政策追踪任务吗？[Y/n] " configure_task
-configure_task="${configure_task:-Y}"
-
-if [[ "$configure_task" =~ ^[Yy]$ ]]; then
-    .venv/bin/python scripts/configure_tracking_task.py
-fi
+.venv/bin/python scripts/customer_setup.py
 
 echo
-echo "安装与基础配置完成。"
-echo "填写 .env 后运行："
-echo "./start_macos.command"
+.venv/bin/python scripts/offline_self_check.py \
+    --require-runtime
+
+echo
+echo "============================================================"
+echo "安装完成"
+echo "============================================================"
+echo "以后只需要运行："
+echo "./radar_macos.command"
+echo
+echo "按菜单提示选择即可。"

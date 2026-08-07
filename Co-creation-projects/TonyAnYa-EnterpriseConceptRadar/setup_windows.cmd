@@ -30,6 +30,7 @@ if not defined PYTHON_CMD (
     exit /b 1
 )
 
+echo 正在安装 EnterpriseConceptRadar……
 echo 使用 Python：%PYTHON_CMD%
 
 if not exist ".venv\Scripts\python.exe" (
@@ -43,38 +44,29 @@ if errorlevel 1 goto :error
 .venv\Scripts\python.exe -m pip install -e .
 if errorlevel 1 goto :error
 
-if not exist ".env" (
-    copy /Y ".env.example" ".env" >nul
-    echo.
-    echo 已创建 .env。
-    echo 请使用记事本填写 LLM 和 SERPAPI 配置：
-    echo %CD%\.env
-)
+echo.
+.venv\Scripts\python.exe scripts\configure_api_keys.py
+if errorlevel 1 goto :error
 
 echo.
-set /p CONFIGURE_SOURCES=现在配置政策来源吗？[Y/n] 
-if "%CONFIGURE_SOURCES%"=="" set "CONFIGURE_SOURCES=Y"
-if /I "%CONFIGURE_SOURCES%"=="Y" (
-    .venv\Scripts\python.exe scripts\configure_policy_sources.py
-    if errorlevel 1 goto :error
-)
+.venv\Scripts\python.exe scripts\customer_setup.py
+if errorlevel 1 goto :error
 
 echo.
-set /p CONFIGURE_TASK=现在配置政策追踪任务吗？[Y/n] 
-if "%CONFIGURE_TASK%"=="" set "CONFIGURE_TASK=Y"
-if /I "%CONFIGURE_TASK%"=="Y" (
-    .venv\Scripts\python.exe scripts\configure_tracking_task.py
-    if errorlevel 1 goto :error
-)
+.venv\Scripts\python.exe scripts\offline_self_check.py --require-runtime
+if errorlevel 1 goto :error
 
 echo.
-echo 安装与基础配置完成。
-echo 填写 .env 后运行 start_windows.cmd
+echo ============================================================
+echo 安装完成
+echo ============================================================
+echo 以后只需要运行 radar_windows.cmd
+echo 按菜单提示选择即可。
 pause
 exit /b 0
 
 :error
 echo.
-echo 安装或配置失败，请查看上方错误。
+echo 安装未完成，请查看上方提示后重新运行 setup_windows.cmd
 pause
 exit /b 1
