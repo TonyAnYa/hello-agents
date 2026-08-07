@@ -25,7 +25,7 @@ def test_customer_setup_creates_sources_and_task(
     tmp_path,
     monkeypatch,
 ) -> None:
-    """推荐设置应生成可读取的来源、任务和报告目录。"""
+    """推荐设置应生成来源、任务和报告目录。"""
     source_path = (
         tmp_path
         / "data/runtime/config/"
@@ -52,6 +52,11 @@ def test_customer_setup_creates_sources_and_task(
         apply_recommended_customer_setup(
             output_directory="reports",
             enable_open_web=True,
+            schedule_enabled=True,
+            schedule_times=[
+                "09:00",
+                "17:30",
+            ],
             project_root=tmp_path,
         )
     )
@@ -61,6 +66,10 @@ def test_customer_setup_creates_sources_and_task(
     assert result.output_directory == (
         tmp_path / "reports"
     ).resolve()
+    assert result.task.schedule.times == [
+        "09:00",
+        "17:30",
+    ]
     assert [
         source.slot
         for source

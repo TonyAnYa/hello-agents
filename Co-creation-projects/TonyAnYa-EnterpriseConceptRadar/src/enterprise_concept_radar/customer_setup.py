@@ -17,6 +17,9 @@ from enterprise_concept_radar.policy_sources import (
     build_policy_source_selection,
     save_policy_source_selection,
 )
+from enterprise_concept_radar.schedule_settings import (
+    DEFAULT_SCHEDULE_TIMES,
+)
 from enterprise_concept_radar.tracking_tasks import (
     DEFAULT_OUTPUT_DIRECTORY,
     DateRangeConfig,
@@ -81,8 +84,16 @@ def build_recommended_task(
     output_directory: str = (
         DEFAULT_OUTPUT_DIRECTORY
     ),
+    schedule_enabled: bool = True,
+    schedule_times: list[str] | None = None,
 ) -> TrackingTask:
     """生成面向普通客户的推荐任务。"""
+    active_times = (
+        list(schedule_times)
+        if schedule_times is not None
+        else list(DEFAULT_SCHEDULE_TIMES)
+    )
+
     return TrackingTask(
         task_id=DEFAULT_TASK_ID,
         name=DEFAULT_TASK_NAME,
@@ -102,12 +113,9 @@ def build_recommended_task(
             rolling_days=7,
         ),
         schedule=TrackingSchedule(
-            enabled=True,
+            enabled=schedule_enabled,
             timezone="Asia/Shanghai",
-            times=[
-                "08:30",
-                "14:00",
-            ],
+            times=active_times,
             catch_up_minutes=90,
         ),
         max_results_per_source=8,
@@ -136,6 +144,8 @@ def apply_recommended_customer_setup(
         DEFAULT_OUTPUT_DIRECTORY
     ),
     enable_open_web: bool = False,
+    schedule_enabled: bool = True,
+    schedule_times: list[str] | None = None,
     project_root: str | Path = PROJECT_ROOT,
 ) -> CustomerSetupResult:
     """保存推荐来源、追踪任务并创建报告目录。"""
@@ -161,7 +171,9 @@ def apply_recommended_customer_setup(
     )
 
     task = build_recommended_task(
-        output_directory=output_directory
+        output_directory=output_directory,
+        schedule_enabled=schedule_enabled,
+        schedule_times=schedule_times,
     )
     task_path = recommended_task_path()
     save_tracking_task(

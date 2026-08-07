@@ -57,11 +57,26 @@ echo.
 if errorlevel 1 goto :error
 
 echo.
+set /p RUN_NOW=现在立即生成第一份简报吗？[Y/n]
+if "%RUN_NOW%"=="" set "RUN_NOW=Y"
+
+if /I "%RUN_NOW%"=="Y" (
+    echo.
+    echo 正在立即搜索政策并生成简报……
+    .venv\Scripts\python.exe scripts\validate_runtime_config.py
+    if errorlevel 1 goto :error
+    .venv\Scripts\python.exe scripts\run_tracking_task.py
+    if errorlevel 1 goto :error
+) else (
+    echo 已跳过立即输出。
+)
+
+echo.
 echo ============================================================
 echo 安装完成
 echo ============================================================
 echo 以后只需要运行 radar_windows.cmd
-echo 按菜单提示选择即可。
+echo 菜单中的“立即输出”会马上执行，不受每日定时时间限制。
 pause
 exit /b 0
 
