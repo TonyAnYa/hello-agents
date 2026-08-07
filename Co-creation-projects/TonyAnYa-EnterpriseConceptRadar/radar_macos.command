@@ -8,10 +8,9 @@ choose_project_python() {
         return 0
     fi
 
-    if (
-        [ -n "${VIRTUAL_ENV:-}" ]
+    if [ -n "${VIRTUAL_ENV:-}" ] \
         && [ -x "${VIRTUAL_ENV}/bin/python" ]
-    ); then
+    then
         if "${VIRTUAL_ENV}/bin/python" -c \
             'import enterprise_concept_radar' \
             >/dev/null 2>&1
