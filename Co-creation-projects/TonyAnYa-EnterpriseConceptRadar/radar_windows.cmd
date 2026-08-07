@@ -3,9 +3,25 @@ chcp 65001 >nul
 setlocal
 cd /d "%~dp0"
 
-set "PYTHON=.venv\Scripts\python.exe"
+set "PYTHON="
 
-if not exist "%PYTHON%" (
+if exist ".venv\Scripts\python.exe" (
+    set "PYTHON=.venv\Scripts\python.exe"
+)
+
+if not defined PYTHON if defined VIRTUAL_ENV (
+    if exist "%VIRTUAL_ENV%\Scripts\python.exe" (
+        "%VIRTUAL_ENV%\Scripts\python.exe" -c "import enterprise_concept_radar" >nul 2>&1
+        if not errorlevel 1 set "PYTHON=%VIRTUAL_ENV%\Scripts\python.exe"
+    )
+)
+
+if not defined PYTHON (
+    python -c "import enterprise_concept_radar" >nul 2>&1
+    if not errorlevel 1 set "PYTHON=python"
+)
+
+if not defined PYTHON (
     echo 尚未安装项目，请先运行 setup_windows.cmd
     pause
     exit /b 1

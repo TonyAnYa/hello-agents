@@ -2,9 +2,41 @@
 
 cd "$(dirname "$0")" || exit 1
 
-PYTHON=".venv/bin/python"
+choose_project_python() {
+    if [ -x ".venv/bin/python" ]; then
+        printf '%s\n' ".venv/bin/python"
+        return 0
+    fi
 
-if [ ! -x "$PYTHON" ]; then
+    if (
+        [ -n "${VIRTUAL_ENV:-}" ]
+        && [ -x "${VIRTUAL_ENV}/bin/python" ]
+    ); then
+        if "${VIRTUAL_ENV}/bin/python" -c \
+            'import enterprise_concept_radar' \
+            >/dev/null 2>&1
+        then
+            printf '%s\n' "${VIRTUAL_ENV}/bin/python"
+            return 0
+        fi
+    fi
+
+    if command -v python >/dev/null 2>&1; then
+        if python -c \
+            'import enterprise_concept_radar' \
+            >/dev/null 2>&1
+        then
+            command -v python
+            return 0
+        fi
+    fi
+
+    return 1
+}
+
+PYTHON="$(choose_project_python || true)"
+
+if [ -z "$PYTHON" ]; then
     echo "尚未安装项目，请先运行："
     echo "./setup_macos.command"
     read -r -p "按回车键退出。"
