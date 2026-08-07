@@ -11,6 +11,10 @@ from pydantic import (
     Field,
 )
 
+from enterprise_concept_radar.concept_history import (
+    build_effective_concept_baseline,
+    record_intelligence_history,
+)
 from enterprise_concept_radar.config import (
     PROJECT_ROOT,
     RUNTIME_DATA_DIR,
@@ -162,6 +166,11 @@ def _execute_tracking_task(
             run_policy_intelligence(
                 task=task,
                 collection_run=collection_run,
+                baseline=(
+                    build_effective_concept_baseline(
+                        task.task_id
+                    )
+                ),
             )
         )
         save_policy_intelligence_run(
@@ -189,6 +198,12 @@ def _execute_tracking_task(
             raise TrackingExecutionError(
                 "所有投递渠道均失败"
             )
+
+        record_intelligence_history(
+            task_id=task.task_id,
+            collection_run=collection_run,
+            intelligence_run=intelligence_run,
+        )
 
         publish_latest_files(
             run_directory=(

@@ -16,6 +16,11 @@
 8. 无法由当前材料确认的内容，应放入 uncertainties。
 9. verification_actions 应说明下一步需要查找或核验什么权威材料。
 10. 只输出一个合法 JSON 对象，不要输出 Markdown，不要使用代码围栏。
+11. candidate_type 和 novelty_score 只是本地历史基线筛选结果。
+    当 first_seen_date 为 null 且 candidate_type 为“新增概念”时，
+    只能称为“新增概念候选”或“当前本地基线未匹配”，
+    不得断言这是该政策首次提出、历史首次出现或全行业新概念；
+    uncertainties 必须注明仍需外部历史语料核验。
 
 JSON 必须包含以下字段：
 

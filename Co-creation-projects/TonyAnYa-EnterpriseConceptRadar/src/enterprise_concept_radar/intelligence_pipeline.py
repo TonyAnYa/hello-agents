@@ -43,6 +43,7 @@ from enterprise_concept_radar.models import (
     ConceptAnalysis,
     ConceptBaseline,
     ConceptCandidate,
+    ConceptCandidateType,
     FeedbackAwareRankingResult,
     GovernanceTaskBatch,
     PolicyDocument,
@@ -669,6 +670,39 @@ def run_policy_intelligence(
     )
 
 
+def describe_candidate_history(
+    candidate: ConceptCandidate,
+) -> str:
+    """生成不会夸大“首次出现”的历史核验说明。"""
+    if candidate.first_seen_date is not None:
+        related = (
+            "；相关历史表述："
+            + "、".join(candidate.related_terms)
+            if candidate.related_terms
+            else ""
+        )
+        return (
+            "本地历史基线最早记录："
+            f"{candidate.first_seen_date.isoformat()}"
+            f"{related}"
+        )
+
+    if (
+        candidate.candidate_type
+        == ConceptCandidateType.NEW_CONCEPT
+    ):
+        return (
+            "当前仅表示未命中本地历史基线；"
+            "尚未完成外部历史语料核验，"
+            "不能据此断言政策首次提出。"
+        )
+
+    return (
+        "当前未记录明确最早出现日期，"
+        "仍需历史语料复核。"
+    )
+
+
 def build_intelligence_brief_markdown(
     *,
     task: TrackingTask,
@@ -746,7 +780,22 @@ def build_intelligence_brief_markdown(
                 ),
                 (
                     "- 候选类型："
-                    f"{item.candidate.candidate_type.value}"
+                    + (
+                        "新增概念候选"
+                        if (
+                            item.candidate.candidate_type
+                            == ConceptCandidateType.NEW_CONCEPT
+                            and item.candidate.first_seen_date
+                            is None
+                        )
+                        else item.candidate.candidate_type.value
+                    )
+                ),
+                (
+                    "- 历史核验："
+                    + describe_candidate_history(
+                        item.candidate
+                    )
                 ),
                 (
                     "- 新颖度："
