@@ -1,4 +1,4 @@
-"""执行一次完整追踪任务并持久化状态。"""
+"""执行一次完整在线追踪与智能分析任务。"""
 
 from __future__ import annotations
 
@@ -18,6 +18,11 @@ from enterprise_concept_radar.config import (
 from enterprise_concept_radar.delivery import (
     DeliveryReceipt,
     deliver_collection_run,
+)
+from enterprise_concept_radar.intelligence_pipeline import (
+    PolicyIntelligenceRun,
+    run_policy_intelligence,
+    save_policy_intelligence_run,
 )
 from enterprise_concept_radar.output_paths import (
     build_tracking_output_paths,
@@ -55,6 +60,7 @@ class TrackingTaskExecution(BaseModel):
 
     task: TrackingTask
     collection_run: PolicyCollectionRun
+    intelligence_run: PolicyIntelligenceRun
     delivery_receipts: list[DeliveryReceipt]
     state: TrackingTaskState
     output_dir: str = Field(
@@ -94,7 +100,7 @@ def run_tracking_task(
     *,
     now: datetime | None = None,
 ) -> TrackingTaskExecution:
-    """执行搜索、抓取、LLM 识别、去重、投递和状态更新。"""
+    """执行采集、智能分析、投递和状态更新。"""
     task = load_tracking_task(task_path)
     state_path = tracking_state_path(
         task.task_id
@@ -149,6 +155,21 @@ def run_tracking_task(
             collection_run,
             output_paths.run_directory,
         )
+
+        intelligence_run = (
+            run_policy_intelligence(
+                task=task,
+                collection_run=collection_run,
+            )
+        )
+        save_policy_intelligence_run(
+            task=task,
+            run=intelligence_run,
+            output_dir=(
+                output_paths.run_directory
+            ),
+        )
+
         receipts = deliver_collection_run(
             task=task,
             run=collection_run,
@@ -156,7 +177,6 @@ def run_tracking_task(
                 output_paths.run_directory
             ),
         )
-
         successful_delivery = any(
             receipt.success
             for receipt in receipts
@@ -223,6 +243,7 @@ def run_tracking_task(
         return TrackingTaskExecution(
             task=task,
             collection_run=collection_run,
+            intelligence_run=intelligence_run,
             delivery_receipts=receipts,
             state=state,
             output_dir=str(

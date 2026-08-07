@@ -267,6 +267,30 @@ class TrackingTask(BaseModel):
         le=100,
         description="每次最多保留的新政策数",
     )
+    max_concepts_per_policy: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+        description="每份政策最多深入分析的概念数",
+    )
+    max_intelligence_items_per_run: int = Field(
+        default=6,
+        ge=1,
+        le=50,
+        description="每次最多生成的完整概念情报项",
+    )
+    minimum_concept_confidence: float = Field(
+        default=0.65,
+        ge=0,
+        le=1,
+        description="进入深入分析的概念发现最低置信度",
+    )
+    minimum_novelty_score: float = Field(
+        default=50,
+        ge=0,
+        le=100,
+        description="进入深入分析的最低新颖度",
+    )
     only_new_policies: bool = Field(
         default=True,
         description="是否只投递尚未成功投递的政策",

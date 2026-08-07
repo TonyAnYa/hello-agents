@@ -19,6 +19,9 @@ LATEST_FILENAMES = (
     "policy_brief.md",
     "policy_brief.json",
     "collection_run.json",
+    "intelligence_brief.md",
+    "intelligence_brief.json",
+    "intelligence_run.json",
     "delivery_receipts.json",
 )
 

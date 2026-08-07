@@ -86,3 +86,14 @@ def test_tracking_task_round_trip(
     restored = load_tracking_task(path)
 
     assert restored == task
+
+
+def test_intelligence_limits_have_safe_defaults() -> None:
+    """默认限制应控制单次 LLM 分析规模。"""
+    task = build_task()
+
+    assert task.max_concepts_per_policy == 3
+    assert task.max_intelligence_items_per_run == 6
+    assert task.minimum_concept_confidence == 0.65
+    assert task.minimum_novelty_score == 50
+

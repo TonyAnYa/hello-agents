@@ -223,6 +223,26 @@ def main() -> None:
             ),
         )
     )
+    max_concepts = int(
+        input_with_default(
+            "每份政策最多深入分析概念数",
+            str(
+                existing.max_concepts_per_policy
+                if existing is not None
+                else 3
+            ),
+        )
+    )
+    max_intelligence_items = int(
+        input_with_default(
+            "每次最多生成完整概念情报项",
+            str(
+                existing.max_intelligence_items_per_run
+                if existing is not None
+                else 6
+            ),
+        )
+    )
 
     task = TrackingTask(
         task_id=task_id,
@@ -285,6 +305,20 @@ def main() -> None:
             else 24
         ),
         max_policies_per_run=max_policies,
+        max_concepts_per_policy=max_concepts,
+        max_intelligence_items_per_run=(
+            max_intelligence_items
+        ),
+        minimum_concept_confidence=(
+            existing.minimum_concept_confidence
+            if existing is not None
+            else 0.65
+        ),
+        minimum_novelty_score=(
+            existing.minimum_novelty_score
+            if existing is not None
+            else 50
+        ),
         only_new_policies=(
             existing.only_new_policies
             if existing is not None
