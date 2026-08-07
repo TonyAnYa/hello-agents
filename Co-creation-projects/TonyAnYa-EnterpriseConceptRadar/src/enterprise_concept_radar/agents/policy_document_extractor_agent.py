@@ -40,6 +40,21 @@ class PolicyDocumentExtractionError(RuntimeError):
     """政策识别、模型调用或结构化结果校验失败。"""
 
 
+class PolicyDocumentRejected(RuntimeError):
+    """网页完成识别，但未通过正式政策准入。"""
+
+    def __init__(
+        self,
+        *,
+        reason: str,
+        confidence: float,
+        is_policy: bool,
+    ) -> None:
+        super().__init__(reason)
+        self.confidence = confidence
+        self.is_policy = is_policy
+
+
 class PolicyDocumentExtractorRunner(Protocol):
     """政策文档提取 Agent 所需的最小接口。"""
 
@@ -195,6 +210,7 @@ def build_policy_document_extractor_input(
             "final_url": page.final_url,
             "page_title": page.title,
             "content_type": page.content_type,
+            "encoding": page.encoding,
             "text": page.text[
                 :MAX_AGENT_TEXT_LENGTH
             ],
@@ -299,6 +315,7 @@ def build_policy_document(
             "page_title": page.title,
             "http_status_code": page.status_code,
             "content_type": page.content_type,
+            "detected_encoding": page.encoding,
             "content_sha256": content_hash,
             "document_number": decision.document_number,
             "source_slot": source_slot,
@@ -326,6 +343,7 @@ def extract_policy_document(
     agent: PolicyDocumentExtractorRunner | None = None,
     settings: LLMSettings | None = None,
     minimum_confidence: float = 0.60,
+    raise_on_rejection: bool = False,
 ) -> PolicyDocument | None:
     """调用大模型识别网页，并返回真实 PolicyDocument。"""
     active_agent = (
@@ -369,6 +387,36 @@ def extract_policy_document(
     decision = parse_policy_document_decision(
         response
     )
+
+    if (
+        raise_on_rejection
+        and not decision.is_policy
+    ):
+        raise PolicyDocumentRejected(
+            reason=(
+                decision.rejection_reason
+                or "模型判定网页不包含正式政策正文"
+            ),
+            confidence=decision.confidence,
+            is_policy=False,
+        )
+
+    if (
+        raise_on_rejection
+        and decision.is_policy
+        and decision.confidence
+        < minimum_confidence
+    ):
+        raise PolicyDocumentRejected(
+            reason=(
+                "模型判断为政策，但识别置信度"
+                f" {decision.confidence:.2f} "
+                "低于准入阈值"
+                f" {minimum_confidence:.2f}"
+            ),
+            confidence=decision.confidence,
+            is_policy=True,
+        )
 
     return build_policy_document(
         page=page,

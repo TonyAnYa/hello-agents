@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import codecs
 import ipaddress
 import re
 from datetime import datetime, timezone
@@ -20,6 +21,23 @@ SUPPORTED_CONTENT_TYPES = {
     "application/xhtml+xml",
     "text/plain",
 }
+HTML_CHARSET_PATTERN = re.compile(
+    rb"charset\s*=\s*[\"']?\s*"
+    rb"([a-zA-Z0-9._:-]+)",
+    flags=re.IGNORECASE,
+)
+MOJIBAKE_MARKERS = (
+    "Ã",
+    "Â",
+    "â€",
+    "æ",
+    "ç",
+    "å",
+    "é",
+    "è",
+    "ï¼",
+    "ã€",
+)
 
 
 class WebFetchError(RuntimeError):
@@ -61,6 +79,217 @@ def validate_public_http_url(value: str) -> str:
         raise WebFetchError("不允许访问内网、本机或保留地址")
 
     return cleaned
+
+
+def _normalize_encoding_name(
+    value: str | None,
+) -> str | None:
+    """将编码别名转换为 Python 标准名称。"""
+    if value is None:
+        return None
+
+    cleaned = value.strip().strip('"').strip("'")
+
+    if not cleaned:
+        return None
+
+    try:
+        return codecs.lookup(cleaned).name
+    except LookupError:
+        return None
+
+
+def _header_charset(
+    raw_content_type: str,
+) -> str | None:
+    """只读取 HTTP 头明确声明的 charset。"""
+    match = re.search(
+        r"charset\s*=\s*[\"']?"
+        r"([^;\"'\s]+)",
+        raw_content_type,
+        flags=re.IGNORECASE,
+    )
+
+    if match is None:
+        return None
+
+    return _normalize_encoding_name(
+        match.group(1)
+    )
+
+
+def _bom_encoding(
+    raw_content: bytes,
+) -> str | None:
+    """根据 Unicode BOM 识别编码。"""
+    signatures = (
+        (codecs.BOM_UTF8, "utf-8-sig"),
+        (codecs.BOM_UTF32_LE, "utf-32-le"),
+        (codecs.BOM_UTF32_BE, "utf-32-be"),
+        (codecs.BOM_UTF16_LE, "utf-16-le"),
+        (codecs.BOM_UTF16_BE, "utf-16-be"),
+    )
+
+    for signature, encoding in signatures:
+        if raw_content.startswith(signature):
+            return encoding
+
+    return None
+
+
+def _html_charset(
+    raw_content: bytes,
+) -> str | None:
+    """从 HTML 前部的 meta charset 中读取编码。"""
+    match = HTML_CHARSET_PATTERN.search(
+        raw_content[:32_768]
+    )
+
+    if match is None:
+        return None
+
+    try:
+        value = match.group(1).decode(
+            "ascii"
+        )
+    except UnicodeDecodeError:
+        return None
+
+    return _normalize_encoding_name(value)
+
+
+def _decoded_text_quality(
+    text: str,
+) -> float:
+    """给解码结果评分，降低替换符和乱码的权重。"""
+    if not text:
+        return float("-inf")
+
+    replacement_count = text.count("\ufffd")
+    control_count = sum(
+        1
+        for character in text
+        if ord(character) < 32
+        and character not in "\n\r\t"
+    )
+    cjk_count = sum(
+        1
+        for character in text
+        if (
+            "\u3400" <= character <= "\u4dbf"
+            or "\u4e00" <= character <= "\u9fff"
+        )
+    )
+    mojibake_count = sum(
+        text.count(marker)
+        for marker in MOJIBAKE_MARKERS
+    )
+    printable_count = sum(
+        1
+        for character in text
+        if character.isprintable()
+        or character in "\n\r\t"
+    )
+    printable_ratio = (
+        printable_count / len(text)
+    )
+
+    return (
+        cjk_count * 3.0
+        + printable_ratio * 100.0
+        - replacement_count * 120.0
+        - control_count * 20.0
+        - mojibake_count * 9.0
+    )
+
+
+def decode_web_content(
+    *,
+    raw_content: bytes,
+    raw_content_type: str,
+    apparent_encoding: str | None,
+) -> tuple[str, str]:
+    """从多个可靠信号中选择质量最高的网页解码。"""
+    candidates: list[
+        tuple[str, float]
+    ] = []
+
+    def add_candidate(
+        value: str | None,
+        bias: float,
+    ) -> None:
+        normalized = (
+            _normalize_encoding_name(value)
+        )
+
+        if normalized is None:
+            return
+
+        if any(
+            existing == normalized
+            for existing, _ in candidates
+        ):
+            return
+
+        candidates.append(
+            (normalized, bias)
+        )
+
+    add_candidate(
+        _bom_encoding(raw_content),
+        30.0,
+    )
+    add_candidate(
+        _header_charset(
+            raw_content_type
+        ),
+        20.0,
+    )
+    add_candidate(
+        _html_charset(raw_content),
+        18.0,
+    )
+    add_candidate(
+        apparent_encoding,
+        8.0,
+    )
+    add_candidate("utf-8", 4.0)
+    add_candidate("gb18030", 2.0)
+
+    best_text: str | None = None
+    best_encoding: str | None = None
+    best_score = float("-inf")
+
+    for encoding, bias in candidates:
+        try:
+            decoded = raw_content.decode(
+                encoding,
+                errors="strict",
+            )
+        except UnicodeDecodeError:
+            continue
+
+        score = (
+            _decoded_text_quality(decoded)
+            + bias
+        )
+
+        if score > best_score:
+            best_text = decoded
+            best_encoding = encoding
+            best_score = score
+
+    if (
+        best_text is None
+        or best_encoding is None
+    ):
+        best_encoding = "utf-8"
+        best_text = raw_content.decode(
+            best_encoding,
+            errors="replace",
+        )
+
+    return best_text, best_encoding
 
 
 def normalize_page_text(value: str) -> str:
@@ -149,6 +378,11 @@ class FetchedWebPage(BaseModel):
     content_type: str = Field(
         min_length=1,
         description="响应内容类型",
+    )
+    encoding: str = Field(
+        default="unknown",
+        min_length=1,
+        description="网页正文最终采用的字符编码",
     )
     title: str = Field(
         min_length=1,
@@ -241,14 +475,16 @@ def fetch_web_page(
             f"实际类型：{content_type or '未知'}"
         )
 
-    encoding = (
-        response.encoding
-        or response.apparent_encoding
-        or "utf-8"
-    )
-    html = raw_content.decode(
-        encoding,
-        errors="replace",
+    html, detected_encoding = (
+        decode_web_content(
+            raw_content=raw_content,
+            raw_content_type=(
+                raw_content_type
+            ),
+            apparent_encoding=(
+                response.apparent_encoding
+            ),
+        )
     )
 
     if content_type == "text/plain":
@@ -287,6 +523,7 @@ def fetch_web_page(
         final_url=final_url,
         status_code=response.status_code,
         content_type=content_type,
+        encoding=detected_encoding,
         title=title,
         text=text,
         html=html,

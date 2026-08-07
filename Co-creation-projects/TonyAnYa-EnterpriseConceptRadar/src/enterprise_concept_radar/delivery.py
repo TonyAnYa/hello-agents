@@ -101,6 +101,9 @@ def _document_summary(
         "content_sha256": metadata.get(
             "content_sha256"
         ),
+        "detected_encoding": metadata.get(
+            "detected_encoding"
+        ),
         "llm_policy_confidence": metadata.get(
             "llm_policy_confidence"
         ),
@@ -138,11 +141,24 @@ def build_collection_markdown(
     ]
 
     if not run.documents:
+        rejected = [
+            failure
+            for failure in run.failures
+            if failure.stage
+            == "policy_rejected"
+        ]
+        result_message = (
+            "本次已完成候选网页抓取和政策身份识别，"
+            f"但 {len(rejected)} 个候选均未通过"
+            "正式政策准入。具体原因见“采集异常”。"
+            if rejected
+            else "本次未发现尚未投递的新政策。"
+        )
         lines.extend(
             [
                 "## 运行结果",
                 "",
-                "本次未发现尚未投递的新政策。",
+                result_message,
                 "",
             ]
         )
@@ -420,6 +436,51 @@ class LocalReportDelivery:
                 output_dir
                 / "intelligence_brief.json"
             )
+
+            if not (
+                intelligence_run
+                .intelligence_items
+            ):
+                intelligence_payload[
+                    "collection_diagnostics"
+                ] = {
+                    "searched_candidate_count": (
+                        collection_run
+                        .searched_candidate_count
+                    ),
+                    "fetched_page_count": (
+                        collection_run
+                        .fetched_page_count
+                    ),
+                    "policy_identification_calls": (
+                        collection_run
+                        .llm_call_count
+                    ),
+                    "failures": [
+                        failure.model_dump(
+                            mode="json",
+                            exclude_none=True,
+                        )
+                        for failure
+                        in collection_run.failures
+                    ],
+                }
+                intelligence_payload[
+                    "report_markdown"
+                ] = (
+                    str(
+                        intelligence_payload[
+                            "report_markdown"
+                        ]
+                    )
+                    + "\n\n---\n\n"
+                    + str(
+                        collection_payload[
+                            "report_markdown"
+                        ]
+                    )
+                )
+
             intelligence_markdown_path.write_text(
                 str(
                     intelligence_payload[

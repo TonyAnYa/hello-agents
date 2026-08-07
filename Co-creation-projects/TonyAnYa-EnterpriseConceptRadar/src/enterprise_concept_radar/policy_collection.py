@@ -17,6 +17,7 @@ from pydantic import (
 )
 
 from enterprise_concept_radar.agents.policy_document_extractor_agent import (
+    PolicyDocumentRejected,
     build_policy_document_extractor_agent,
     extract_policy_document,
 )
@@ -485,17 +486,57 @@ def collect_online_policies(
                     )
 
                 llm_call_count += 1
+                extraction_kwargs: dict[
+                    str,
+                    Any,
+                ] = {
+                    "page": page,
+                    "source_name_hint": (
+                        source_name
+                    ),
+                    "source_slot": source.slot,
+                    "source_id": source.source_id,
+                    "user_question": task.question,
+                    "keywords": task.keywords,
+                    "search_query": candidate.query,
+                    "search_snippet": (
+                        candidate.snippet
+                    ),
+                    "agent": active_agent,
+                }
+
+                if (
+                    extract_func
+                    is extract_policy_document
+                ):
+                    extraction_kwargs[
+                        "raise_on_rejection"
+                    ] = True
+
                 document = extract_func(
-                    page=page,
-                    source_name_hint=source_name,
-                    source_slot=source.slot,
-                    source_id=source.source_id,
-                    user_question=task.question,
-                    keywords=task.keywords,
-                    search_query=candidate.query,
-                    search_snippet=candidate.snippet,
-                    agent=active_agent,
+                    **extraction_kwargs
                 )
+            except PolicyDocumentRejected as exc:
+                failures.append(
+                    CollectionFailure(
+                        stage="policy_rejected",
+                        source_id=source.source_id,
+                        url=candidate.url,
+                        error_type=(
+                            type(exc).__name__
+                        ),
+                        message=(
+                            f"{exc}；"
+                            f"识别置信度："
+                            f"{exc.confidence:.2f}；"
+                            f"网页编码："
+                            f"{page.encoding}；"
+                            f"正文长度："
+                            f"{len(page.text)}"
+                        ),
+                    )
+                )
+                continue
             except Exception as exc:
                 failures.append(
                     CollectionFailure(
