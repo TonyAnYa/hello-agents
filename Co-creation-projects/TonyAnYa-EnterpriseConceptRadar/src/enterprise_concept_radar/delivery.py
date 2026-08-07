@@ -1,4 +1,4 @@
-"""政策采集结果的统一投递接口与本地双格式报告。"""
+"""完整追踪结果的统一投递接口与本地双格式报告。"""
 
 from __future__ import annotations
 
@@ -16,6 +16,10 @@ from pydantic import (
     Field,
 )
 
+from enterprise_concept_radar.intelligence_pipeline import (
+    PolicyIntelligenceRun,
+    build_intelligence_brief_payload,
+)
 from enterprise_concept_radar.models import PolicyDocument
 from enterprise_concept_radar.policy_collection import (
     PolicyCollectionRun,
@@ -66,11 +70,12 @@ class DeliveryAdapter(Protocol):
         self,
         *,
         task: TrackingTask,
-        run: PolicyCollectionRun,
+        collection_run: PolicyCollectionRun,
+        intelligence_run: PolicyIntelligenceRun | None,
         target: DeliveryTarget,
         output_dir: Path,
     ) -> DeliveryReceipt:
-        """投递一次政策采集结果。"""
+        """投递一次完整追踪结果。"""
 
 
 def _document_summary(
@@ -114,9 +119,9 @@ def build_collection_markdown(
     task: TrackingTask,
     run: PolicyCollectionRun,
 ) -> str:
-    """生成适合本地归档和平台推送的政策简报。"""
+    """生成政策采集层 Markdown 简报。"""
     lines = [
-        f"# {task.name}",
+        f"# {task.name}：政策采集简报",
         "",
         f"- 任务 ID：`{task.task_id}`",
         f"- 用户问题：{task.question}",
@@ -220,8 +225,8 @@ def build_collection_markdown(
             "## 说明",
             "",
             (
-                "本报告中的政策正文来自实时网页抓取；"
-                "政策身份字段由大模型依据网页材料提取，"
+                "政策正文来自实时网页抓取；"
+                "政策身份字段由模型依据网页材料提取，"
                 "重要业务使用前仍需专业核验。"
             ),
             "",
@@ -236,7 +241,7 @@ def build_collection_payload(
     task: TrackingTask,
     run: PolicyCollectionRun,
 ) -> dict[str, Any]:
-    """生成 Markdown、Webhook 和平台适配器共用的数据包。"""
+    """生成政策采集层结构化数据包。"""
     markdown = build_collection_markdown(
         task=task,
         run=run,
@@ -307,58 +312,148 @@ def build_collection_payload(
     }
 
 
+def build_tracking_delivery_payload(
+    *,
+    task: TrackingTask,
+    collection_run: PolicyCollectionRun,
+    intelligence_run: PolicyIntelligenceRun | None,
+) -> dict[str, Any]:
+    """生成所有投递渠道共用的完整数据包。"""
+    collection_payload = (
+        build_collection_payload(
+            task=task,
+            run=collection_run,
+        )
+    )
+    intelligence_payload = (
+        build_intelligence_brief_payload(
+            task=task,
+            run=intelligence_run,
+        )
+        if intelligence_run is not None
+        else None
+    )
+
+    return {
+        "schema_version": "2.0",
+        "generated_at": datetime.now(
+            timezone.utc
+        ).isoformat(),
+        "task_id": task.task_id,
+        "collection": collection_payload,
+        "intelligence": intelligence_payload,
+        "primary_report_markdown": (
+            intelligence_payload[
+                "report_markdown"
+            ]
+            if intelligence_payload is not None
+            else collection_payload[
+                "report_markdown"
+            ]
+        ),
+    }
+
+
 class LocalReportDelivery:
-    """保存 Markdown 和 JSON 两种本地政策简报。"""
+    """保存政策采集和完整智能分析的 Markdown/JSON。"""
 
     def deliver(
         self,
         *,
         task: TrackingTask,
-        run: PolicyCollectionRun,
+        collection_run: PolicyCollectionRun,
+        intelligence_run: PolicyIntelligenceRun | None,
         target: DeliveryTarget,
         output_dir: Path,
     ) -> DeliveryReceipt:
-        """将双格式简报写入用户指定的运行目录。"""
+        """将双层简报写入用户指定的运行目录。"""
         output_dir.mkdir(
             parents=True,
             exist_ok=True,
         )
-        payload = build_collection_payload(
-            task=task,
-            run=run,
+        collection_payload = (
+            build_collection_payload(
+                task=task,
+                run=collection_run,
+            )
         )
-        markdown_path = (
+        policy_markdown_path = (
             output_dir / "policy_brief.md"
         )
-        json_path = (
+        policy_json_path = (
             output_dir / "policy_brief.json"
         )
-        markdown_path.write_text(
-            str(payload["report_markdown"]),
+        policy_markdown_path.write_text(
+            str(
+                collection_payload[
+                    "report_markdown"
+                ]
+            ),
             encoding="utf-8",
         )
-        json_path.write_text(
+        policy_json_path.write_text(
             json.dumps(
-                payload,
+                collection_payload,
                 ensure_ascii=False,
                 indent=2,
             ),
             encoding="utf-8",
         )
 
+        destination = policy_markdown_path
+        message = (
+            "本地 Markdown/JSON 政策采集简报已生成"
+        )
+
+        if intelligence_run is not None:
+            intelligence_payload = (
+                build_intelligence_brief_payload(
+                    task=task,
+                    run=intelligence_run,
+                )
+            )
+            intelligence_markdown_path = (
+                output_dir
+                / "intelligence_brief.md"
+            )
+            intelligence_json_path = (
+                output_dir
+                / "intelligence_brief.json"
+            )
+            intelligence_markdown_path.write_text(
+                str(
+                    intelligence_payload[
+                        "report_markdown"
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            intelligence_json_path.write_text(
+                json.dumps(
+                    intelligence_payload,
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            destination = (
+                intelligence_markdown_path
+            )
+            message = (
+                "本地 Markdown/JSON 完整智能简报已生成"
+            )
+
         return DeliveryReceipt(
             channel=target.channel,
             target_name=target.name,
             success=True,
-            destination=str(markdown_path),
-            message=(
-                "本地 Markdown/JSON 政策简报已生成"
-            ),
+            destination=str(destination),
+            message=message,
         )
 
 
 class GenericWebhookDelivery:
-    """通用 JSON Webhook 投递实现。"""
+    """完整智能分析结果的通用 JSON Webhook 投递。"""
 
     def __init__(
         self,
@@ -375,11 +470,12 @@ class GenericWebhookDelivery:
         self,
         *,
         task: TrackingTask,
-        run: PolicyCollectionRun,
+        collection_run: PolicyCollectionRun,
+        intelligence_run: PolicyIntelligenceRun | None,
         target: DeliveryTarget,
         output_dir: Path,
     ) -> DeliveryReceipt:
-        """从环境变量读取地址和令牌并发送 JSON。"""
+        """从环境变量读取地址和令牌并发送完整数据包。"""
         del output_dir
 
         if not target.endpoint_env:
@@ -422,9 +518,16 @@ class GenericWebhookDelivery:
             response = self.session.post(
                 endpoint,
                 headers=headers,
-                json=build_collection_payload(
-                    task=task,
-                    run=run,
+                json=(
+                    build_tracking_delivery_payload(
+                        task=task,
+                        collection_run=(
+                            collection_run
+                        ),
+                        intelligence_run=(
+                            intelligence_run
+                        ),
+                    )
                 ),
                 timeout=self.timeout,
             )
@@ -440,23 +543,29 @@ class GenericWebhookDelivery:
             target_name=target.name,
             success=True,
             destination=endpoint,
-            message="Webhook 投递成功",
+            message="完整智能分析 Webhook 投递成功",
         )
 
 
 class ReservedPlatformDelivery:
-    """企业微信、钉钉、飞书和其他平台的预留适配器。"""
+    """企业微信、钉钉、飞书及其他平台的预留适配器。"""
 
     def deliver(
         self,
         *,
         task: TrackingTask,
-        run: PolicyCollectionRun,
+        collection_run: PolicyCollectionRun,
+        intelligence_run: PolicyIntelligenceRun | None,
         target: DeliveryTarget,
         output_dir: Path,
     ) -> DeliveryReceipt:
         """取得平台接口规范前明确返回未配置。"""
-        del task, run, output_dir
+        del (
+            task,
+            collection_run,
+            intelligence_run,
+            output_dir,
+        )
 
         raise DeliveryError(
             f"{target.channel.value} 投递接口尚未配置"
@@ -465,7 +574,7 @@ class ReservedPlatformDelivery:
 
 def default_delivery_adapters(
 ) -> Mapping[DeliveryChannel, DeliveryAdapter]:
-    """返回当前项目支持的默认适配器。"""
+    """返回当前支持的默认适配器。"""
     reserved = ReservedPlatformDelivery()
 
     return {
@@ -512,17 +621,18 @@ def _save_receipts(
     return receipts_path
 
 
-def deliver_collection_run(
+def deliver_tracking_run(
     *,
     task: TrackingTask,
-    run: PolicyCollectionRun,
+    collection_run: PolicyCollectionRun,
+    intelligence_run: PolicyIntelligenceRun | None,
     output_dir: str | Path,
     adapters: Mapping[
         DeliveryChannel,
         DeliveryAdapter,
     ] | None = None,
 ) -> list[DeliveryReceipt]:
-    """向全部目标投递；单个渠道失败不影响其他渠道。"""
+    """投递完整追踪结果，单个渠道失败不影响其他渠道。"""
     directory = Path(output_dir)
     directory.mkdir(
         parents=True,
@@ -537,9 +647,17 @@ def deliver_collection_run(
         for target in task.delivery_targets
         if target.enabled
     ]
+    has_intelligence = bool(
+        intelligence_run
+        and intelligence_run.intelligence_items
+    )
+    has_updates = bool(
+        collection_run.documents
+        or has_intelligence
+    )
 
     if (
-        not run.documents
+        not has_updates
         and not task.send_when_no_updates
     ):
         skipped_receipts = [
@@ -549,7 +667,8 @@ def deliver_collection_run(
                 success=True,
                 skipped=True,
                 message=(
-                    "没有新增政策，按照任务配置跳过投递"
+                    "没有新增政策或概念情报，"
+                    "按照任务配置跳过投递"
                 ),
             )
             for target in enabled_targets
@@ -582,7 +701,10 @@ def deliver_collection_run(
         try:
             receipt = adapter.deliver(
                 task=task,
-                run=run,
+                collection_run=collection_run,
+                intelligence_run=(
+                    intelligence_run
+                ),
                 target=target,
                 output_dir=directory,
             )
@@ -604,3 +726,23 @@ def deliver_collection_run(
     )
 
     return receipts
+
+
+def deliver_collection_run(
+    *,
+    task: TrackingTask,
+    run: PolicyCollectionRun,
+    output_dir: str | Path,
+    adapters: Mapping[
+        DeliveryChannel,
+        DeliveryAdapter,
+    ] | None = None,
+) -> list[DeliveryReceipt]:
+    """兼容旧调用：仅投递政策采集结果。"""
+    return deliver_tracking_run(
+        task=task,
+        collection_run=run,
+        intelligence_run=None,
+        output_dir=output_dir,
+        adapters=adapters,
+    )

@@ -17,7 +17,7 @@ from enterprise_concept_radar.config import (
 )
 from enterprise_concept_radar.delivery import (
     DeliveryReceipt,
-    deliver_collection_run,
+    deliver_tracking_run,
 )
 from enterprise_concept_radar.intelligence_pipeline import (
     PolicyIntelligenceRun,
@@ -36,6 +36,9 @@ from enterprise_concept_radar.policy_collection import (
 )
 from enterprise_concept_radar.policy_sources import (
     load_policy_source_selection,
+)
+from enterprise_concept_radar.run_lock import (
+    task_run_lock,
 )
 from enterprise_concept_radar.tracking_tasks import (
     TrackingTask,
@@ -95,13 +98,12 @@ def tracking_state_path(
     )
 
 
-def run_tracking_task(
-    task_path: str | Path,
+def _execute_tracking_task(
     *,
+    task: TrackingTask,
     now: datetime | None = None,
 ) -> TrackingTaskExecution:
-    """执行采集、智能分析、投递和状态更新。"""
-    task = load_tracking_task(task_path)
+    """在已取得互斥锁的前提下执行完整任务。"""
     state_path = tracking_state_path(
         task.task_id
     )
@@ -170,9 +172,10 @@ def run_tracking_task(
             ),
         )
 
-        receipts = deliver_collection_run(
+        receipts = deliver_tracking_run(
             task=task,
-            run=collection_run,
+            collection_run=collection_run,
+            intelligence_run=intelligence_run,
             output_dir=(
                 output_paths.run_directory
             ),
@@ -269,3 +272,18 @@ def run_tracking_task(
             state_path,
         )
         raise
+
+
+def run_tracking_task(
+    task_path: str | Path,
+    *,
+    now: datetime | None = None,
+) -> TrackingTaskExecution:
+    """取得互斥锁后执行采集、分析、投递和状态更新。"""
+    task = load_tracking_task(task_path)
+
+    with task_run_lock(task.task_id):
+        return _execute_tracking_task(
+            task=task,
+            now=now,
+        )
