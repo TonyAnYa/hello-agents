@@ -30,6 +30,13 @@ from enterprise_concept_radar.agents.concept_analysis_agent import (
     parse_concept_analysis_response,
     save_concept_analysis,
 )
+from enterprise_concept_radar.agents.policy_source_resolver_agent import (
+    PolicySourceResolverError,
+    build_policy_source_resolver_agent,
+    build_policy_source_resolver_input,
+    parse_policy_source_resolution,
+    resolve_policy_source,
+)
 
 __all__ = [
     "AnswerComposerError",
@@ -56,4 +63,9 @@ __all__ = [
     "save_business_impact",
     "save_concept_analysis",
     "find_impact_level_conflicts",
+    "PolicySourceResolverError",
+    "build_policy_source_resolver_agent",
+    "build_policy_source_resolver_input",
+    "parse_policy_source_resolution",
+    "resolve_policy_source",
 ]
